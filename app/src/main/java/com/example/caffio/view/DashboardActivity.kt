@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.example.caffio.repository.ProductRepositoryImpl
 import com.example.caffio.viewmodel.ProductViewModel
 
@@ -47,17 +49,14 @@ class DashboardActivity : ComponentActivity() {
 }
 
 @Composable
-fun DashboardBody(){
-
+fun DashboardBody() {
+    val context = LocalContext.current
+    val activity = context as? Activity
 
     val repo = remember { ProductRepositoryImpl() }
     val viewModel = remember { ProductViewModel(repo) }
 
-    val context= LocalContext.current
-    val activity=context as? Activity
-
-    val products = viewModel.allProducts
-        .observeAsState(initial = emptyList())
+    val products = viewModel.allProducts.observeAsState(initial = emptyList())
 
     val loading = viewModel.loading.observeAsState(initial = true)
 
@@ -65,73 +64,85 @@ fun DashboardBody(){
         viewModel.getAllProduct()
     }
 
-    Scaffold (
+
+    Scaffold(
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                val intent = Intent(context, AddProductActivity :: class.java)
+                val intent = Intent(context, AddProductActivity::class.java)
                 context.startActivity(intent)
             }) {
                 Icon(Icons.Default.Add, contentDescription = null)
             }
-        }
-    ){
-        innerPadding ->
-        LazyColumn(modifier = Modifier.padding(innerPadding)){
-            if (loading.value){
-                item{
+        },
+
+        ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+        ) {
+            if(loading.value){
+                item {
                     CircularProgressIndicator()
                 }
-            }else{
-                items(products.value.size){ }
-            }
-            items(products.value.size) {index ->
-                val eachProduct = products.value[index]
-                Card (modifier = Modifier.fillMaxWidth()){
-                    Column {
-                        Text("${eachProduct?.productName}")
-                        Text("${eachProduct?.productPrice}")
-                        Text("${eachProduct?.productDesc}")
+            }else {
+                items(products.value.size) { index ->
+                    val data = products.value[index]
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            IconButton(onClick = {
-                                val intent = Intent(context, UpdateProductActivity :: class.java)
-                                intent.putExtra("product Id" , "${ eachProduct?.productId}")
-                                context.startActivity(intent)
-                            }, colors = IconButtonDefaults.iconButtonColors(
-                                contentColor = Color.Gray
-                            )) {
-                                Icon(Icons.Default.Edit,contentDescription = null)
-                            }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("${data?.productName}")
+                            Text("${data?.productPrice}")
+                            Text("${data?.productDesc}")
 
-                            IconButton(onClick = {
-                                viewModel.deleteProduct (eachProduct?. productId.toString()){
-                                        success, message ->
-                                    if (success){
-                                        Toast.makeText(context, message, Toast.LENGTH_LONG)
-                                            .show()
-                                    }else{
-                                        Toast.makeText(context, message, Toast.LENGTH_LONG)
-                                            .show()
-                                    }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        val intent =
+                                            Intent(context, UpdateProductActivity::class.java)
+                                        intent.putExtra("productId", data?.productId)
+                                        context.startActivity(intent)
+                                    },
+                                    colors = IconButtonDefaults.iconButtonColors(
+                                        contentColor = Color.Gray
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = null)
                                 }
-                            },colors = IconButtonDefaults.iconButtonColors(
-                                contentColor = Color.Red
-                            )) {
-                                Icon(Icons.Default.Delete,contentDescription = null)
+                                IconButton(
+                                    onClick = {
+                                        viewModel.deleteProduct(data?.productId.toString()) { success, message ->
+                                            if (success) {
+                                                Toast.makeText(context, message, Toast.LENGTH_LONG)
+                                                    .show()
+                                            } else {
+                                                Toast.makeText(context, message, Toast.LENGTH_LONG)
+                                                    .show()
+
+                                            }
+                                        }
+
+                                    }, colors = IconButtonDefaults.iconButtonColors(
+                                        contentColor = Color.Red
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = null)
+                                }
                             }
                         }
                     }
                 }
             }
-
         }
     }
-    
 }
-
 @Preview
 @Composable
 fun DashboardActivityPre(){

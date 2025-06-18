@@ -12,12 +12,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -31,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -49,6 +51,8 @@ class AddProductActivity : ComponentActivity() {
         enableEdgeToEdge()
         imageUtils = ImageUtils(this, this)
         imageUtils.registerLaunchers { uri ->
+            selectedImageUri = uri
+        }
         setContent {
             AddProductBody(
                 selectedImageUri = selectedImageUri,
@@ -57,21 +61,20 @@ class AddProductActivity : ComponentActivity() {
         }
     }
 }
-}
 
 @Composable
 fun AddProductBody(
     selectedImageUri: Uri?,
     onPickImage: () -> Unit
 ) {
-    var pName by remember { mutableStateOf("") }
-    var pPrice by remember { mutableStateOf("") }
-    var pDesc by remember { mutableStateOf("") }
+    var productName by remember { mutableStateOf("") }
+    var productPrice by remember { mutableStateOf("") }
+    var productDescription by remember { mutableStateOf("") }
 
     val repo = remember { ProductRepositoryImpl() }
     val viewModel = remember { ProductViewModel(repo) }
 
-    val  context = LocalContext.current
+    val context = LocalContext.current
     val activity = context as? Activity
 
     Scaffold { innerPadding ->
@@ -102,49 +105,46 @@ fun AddProductBody(
                         )
                     } else {
                         Image(
-                            painterResource(R.drawable.img),
+                            painterResource(R.drawable.gallery9),
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
                     }
                 }
+
                 OutlinedTextField(
-                    value = pName,
-                    onValueChange = {
-                        pName = it
-                    },
-                    placeholder = {
-                        Text("Enter product name")
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = pPrice,
-                    onValueChange = {
-                        pPrice = it
-                    },
-                    placeholder = {
-                        Text("Enter price")
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    placeholder = { Text("Product Name") },
+                    value = productName,
+                    onValueChange = { productName = it }
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
-                    value = pDesc,
-                    onValueChange = {
-                        pDesc = it
-                    },
-                    placeholder = {
-                        Text("Enter Description")
-                    },
-                    minLines = 3,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    placeholder = { Text("Product Description") },
+                    value = productDescription,
+                    onValueChange = { productDescription = it }
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    placeholder = { Text("Product Price") },
+                    value = productPrice,
+                    onValueChange = { productPrice = it }
+                )
+
+
                 Button(
                     onClick = {
                         if (selectedImageUri != null) {
@@ -152,9 +152,9 @@ fun AddProductBody(
                                 if (imageUrl != null) {
                                     val model = ProductModel(
                                         "",
-                                        pName,
-                                        pDesc,
-                                        pPrice.toDouble(),
+                                        productName,
+                                        productDescription,
+                                        productPrice.toDouble(),
                                         imageUrl
                                     )
                                     viewModel.addProduct(model) { success, message ->
@@ -188,9 +188,11 @@ fun AddProductBody(
 
     @Preview
 @Composable
-fun previewAddProductBody() {
+fun PreviewAddProductBody() {
     AddProductBody(
-        selectedImageUri = null, // or pass a mock Uri if needed
-        onPickImage = {} // no-op
+        selectedImageUri = null,
+        onPickImage = {
+
+        }
     )
 }
