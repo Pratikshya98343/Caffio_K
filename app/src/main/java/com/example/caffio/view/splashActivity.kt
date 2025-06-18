@@ -41,38 +41,40 @@ class splashActivity : ComponentActivity() {
 
 @Preview
 @Composable
-fun SplashBody(){
+fun SplashBody() {
 
-    val context= LocalContext.current
-    val activity= context as? Activity
+    val context = LocalContext.current
+    val activity = context as? Activity
 
 
-    val sharedPreferences =context.getSharedPreferences("User", Context.MODE_PRIVATE)
+    val sharedPreferences = context.getSharedPreferences("User", Context.MODE_PRIVATE)
     val editor = sharedPreferences.edit()
 
-    val localEmail: String= sharedPreferences.getString("email","").toString()
-    val localPassword: String = sharedPreferences.getString("password","").toString()
+    val localEmail: String = sharedPreferences.getString("email", "").toString()
+    val localPassword: String = sharedPreferences.getString("password", "").toString()
 
 
     LaunchedEffect(Unit) {
         delay(3000)
-        if (localEmail.isEmpty()){
+        if (localEmail.isEmpty()) {
             val intent = Intent(context, splashActivity::class.java)
             context.startActivity(intent)
             activity?.finish()
-        }else{
+        } else {
             val intent = Intent(context, DashboardActivity::class.java)
             context.startActivity(intent)
             activity?.finish()
         }
     }
 
-    Scaffold { padding->
-        Column (modifier = Modifier
-            .padding(padding).background(color = Color.White)
-            .fillMaxSize(),
+    Scaffold { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding).background(color = Color.White)
+                .fillMaxSize(),
             verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally){
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Image(
                 painterResource(R.drawable.gallery9),
                 contentDescription = null
@@ -82,6 +84,7 @@ fun SplashBody(){
         }
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable
