@@ -1,4 +1,4 @@
-package com.example.caffio.ui.theme
+package com.example.caffio.view.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

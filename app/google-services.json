@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "394572240237",
+    "firebase_url": "https://caffio-fc8ed-default-rtdb.firebaseio.com",
+    "project_id": "caffio-fc8ed",
+    "storage_bucket": "caffio-fc8ed.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:394572240237:android:a5aeca540f2e59806b3664",
+        "android_client_info": {
+          "package_name": "com.example.caffio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwwYTwJw4B1H15V7TZmeBlZS60zBLbLmw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,4 +1,4 @@
-package com.example.caffio.ui.theme
+package com.example.caffio.view
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
