@@ -53,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,43 +66,64 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.caffio.view.ui.theme.CaffioTheme
+import com.google.firebase.Firebase
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.database
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class ProfileActivity : ComponentActivity() {
+
+    private lateinit var database: DatabaseReference
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Initialize Firebase Database
+        Firebase.database.setPersistenceEnabled(true)
+        database = Firebase.database.reference
+
         setContent {
             CaffioTheme {
-                ProfileApp()
+                ProfileApp(database = database)
             }
         }
     }
 }
+
+// Screen navigation sealed class
 sealed class Screen {
     object Profile : Screen()
     object EditProfile : Screen()
     object ChangePassword : Screen()
     object CoffeePreferences : Screen()
 }
+
+// Data model for Firebase
+data class UserModel(
+    val fullName: String = "",
+    val email: String = "",
+    val preferences: List<String> = emptyList()
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileApp() {
+fun ProfileApp(database: DatabaseReference) {
+    val context = LocalContext.current
+    val userId = "user_123"
+
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Profile) }
-    val context = LocalContext.current // Get context for Toast messages
 
     when (currentScreen) {
         Screen.Profile -> ProfileScreen(
             onNavigate = { currentScreen = it },
-            onBack = {
-                // For a single activity app, this will finish the activity
-                // In a multi-activity app or with a NavHost, you'd navigate up
-                (context as? ComponentActivity)?.finish()
-            }
+            onBack = { (context as? ComponentActivity)?.finish() },
+            database = database,
+            userId = userId
         )
         Screen.EditProfile -> EditProfileScreen(
             onBack = { currentScreen = Screen.Profile },
@@ -111,7 +133,9 @@ fun ProfileApp() {
             },
             onSaveError = { message ->
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-            }
+            },
+            database = database,
+            userId = userId
         )
         Screen.ChangePassword -> ChangePasswordScreen(
             onBack = { currentScreen = Screen.Profile },
@@ -131,22 +155,56 @@ fun ProfileApp() {
             },
             onSaveError = { message ->
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-            }
+            },
+            database = database,
+            userId = userId
         )
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(onNavigate: (Screen) -> Unit, onBack: () -> Unit) {
+fun ProfileScreen(
+    onNavigate: (Screen) -> Unit,
+    onBack: () -> Unit,
+    database: DatabaseReference,
+    userId: String
+) {
     val gradient = Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF6F4E37), Color(0xFF8B4513), // Coffee-like colors
+            Color(0xFF6F4E37), Color(0xFF8B4513),
             Color(0xFFA0522D), Color(0xFFD2B48C)
         )
     )
-    val mockUser = UserModel(fullName = "Coffee Lover", email = "user@caffio.com") // Changed email
-    var currentUser by remember { mutableStateOf(mockUser) }
-    var isLoading by remember { mutableStateOf(false) } // This isLoading is for the initial load, not saving
+
+    var currentUser by remember { mutableStateOf<UserModel?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+
+    // Load user from Firebase
+    LaunchedEffect(Unit) {
+        database.child("users").child(userId).get()
+            .addOnSuccessListener { snapshot ->
+                if (snapshot.exists()) {
+                    currentUser = snapshot.getValue(UserModel::class.java)
+                } else {
+                    // Create default user
+                    val defaultUser = UserModel(
+                        fullName = "Coffee Lover",
+                        email = "user@caffio.com",
+                        preferences = listOf("☕ Espresso")
+                    )
+                    database.child("users").child(userId).setValue(defaultUser)
+                    currentUser = defaultUser
+                }
+                isLoading = false
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(context, "Load failed: ${e.message}", Toast.LENGTH_LONG).show()
+                currentUser = UserModel(fullName = "Offline User", email = "unknown@caffio.com")
+                isLoading = false
+            }
+    }
 
     Scaffold(
         topBar = {
@@ -160,12 +218,8 @@ fun ProfileScreen(onNavigate: (Screen) -> Unit, onBack: () -> Unit) {
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { // Calls the onBack lambda
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -181,9 +235,10 @@ fun ProfileScreen(onNavigate: (Screen) -> Unit, onBack: () -> Unit) {
         ) {
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFFCD853F)) // Coffee-like color
+                    CircularProgressIndicator(color = Color(0xFFCD853F))
                 }
             } else {
+                val user = currentUser!!
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -192,6 +247,8 @@ fun ProfileScreen(onNavigate: (Screen) -> Unit, onBack: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(modifier = Modifier.height(20.dp))
+
+                    // Profile Image Placeholder
                     Box(
                         modifier = Modifier
                             .size(140.dp)
@@ -199,101 +256,90 @@ fun ProfileScreen(onNavigate: (Screen) -> Unit, onBack: () -> Unit) {
                             .background(
                                 Brush.radialGradient(
                                     colors = listOf(
-                                        Color(0xFFCD853F), Color(0xFFD2B48C), Color(0xFFF5DEB3) // Coffee-like colors
+                                        Color(0xFFCD853F), Color(0xFFD2B48C), Color(0xFFF5DEB3)
                                     )
                                 )
                             )
-                            .border(4.dp, Color(0xFFA0522D), CircleShape), // Coffee-like color
+                            .border(4.dp, Color(0xFFA0522D), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = currentUser.fullName.firstOrNull()?.toString()?.uppercase() ?: "U",
-                            color = Color(0xFF6F4E37), fontWeight = FontWeight.Bold, fontSize = 56.sp // Coffee-like color
+                            text = user.fullName.firstOrNull()?.uppercase() ?: "U",
+                            color = Color(0xFF6F4E37),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 56.sp
                         )
                     }
+
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = currentUser.fullName,
-                        color = Color.White,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = currentUser.email,
-                        color = Color(0xFFF5DEB3), // Coffee-like color
-                        fontSize = 16.sp,
-                        fontStyle = FontStyle.Italic
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp)
-                            .fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0x60A0522D)), // Coffee-like color
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    Text(text = user.fullName, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text(text = user.email, color = Color(0xFFF5DEB3), fontSize = 16.sp, fontStyle = FontStyle.Italic)
+
+                    // Preferences Badge
+                    if (user.preferences.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Card(
+                            modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0x60A0522D))
                         ) {
-                            Text(text = "☕", fontSize = 20.sp) // Changed emoji
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Espresso Enthusiast", // Changed text
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium
-                            )
+                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "☕", fontSize = 20.sp)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "${user.preferences.size} Favorite${if (user.preferences.size > 1) "s" else ""}",
+                                    color = Color.White,
+                                    fontSize = 16.sp
+                                )
+                            }
                         }
                     }
+
                     Spacer(modifier = Modifier.height(32.dp))
+
                     ProfileOptionCard(
                         icon = Icons.Default.Edit,
                         title = "Edit Profile",
-                        subtitle = "Update your coffee preferences & info", // Changed subtitle
+                        subtitle = "Update your coffee preferences & info",
                         onClick = { onNavigate(Screen.EditProfile) }
                     )
+
                     Spacer(modifier = Modifier.height(12.dp))
+
                     ProfileOptionCard(
                         icon = Icons.Default.Lock,
                         title = "Change Password",
-                        subtitle = "Secure your Caffio account", // Changed subtitle
+                        subtitle = "Secure your Caffio account",
                         onClick = { onNavigate(Screen.ChangePassword) },
-                        accentColor = Color(0xFFCD853F) // Coffee-like color
+                        accentColor = Color(0xFFCD853F)
                     )
+
                     Spacer(modifier = Modifier.height(12.dp))
+
                     ProfileOptionCard(
                         icon = Icons.Default.CheckCircle,
-                        title = "Coffee Preferences", // Changed title
-                        subtitle = "Customize your coffee experience", // Changed subtitle
-                        onClick = { onNavigate(Screen.CoffeePreferences) }, // Changed navigation target
-                        accentColor = Color(0xFFD2B48C) // Coffee-like color
+                        title = "Coffee Preferences",
+                        subtitle = "Customize your coffee experience",
+                        onClick = { onNavigate(Screen.CoffeePreferences) },
+                        accentColor = Color(0xFFD2B48C)
                     )
+
                     Spacer(modifier = Modifier.height(32.dp))
+
                     Button(
-                        onClick = {
-                            // Implement logout logic
-                            // You might want to show a confirmation dialog
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
+                        onClick = { /* Handle logout */ },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC143C).copy(alpha = 0.9f)),
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            "Leave Caffio", // Changed text
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Text("Leave Caffio", color = Color.White, fontSize = 16.sp)
                     }
+
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Caffio - Your Coffee Companion", // Changed text
+                        text = "Caffio - Your Coffee Companion",
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 12.sp,
                         fontStyle = FontStyle.Italic,
@@ -305,26 +351,23 @@ fun ProfileScreen(onNavigate: (Screen) -> Unit, onBack: () -> Unit) {
         }
     }
 }
+
 @Composable
 fun ProfileOptionCard(
     icon: ImageVector,
     title: String,
     subtitle: String,
     onClick: () -> Unit,
-    accentColor: Color = Color(0xFFCD853F) // Coffee-like color
+    accentColor: Color = Color(0xFFCD853F)
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0x50000000)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -341,32 +384,41 @@ fun ProfileOptionCard(
                 Text(text = title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Text(text = subtitle, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
             }
-            Icon(
-                Icons.Default.ArrowForward,
-                contentDescription = null,
+            Icon(Icons.Default.ArrowForward,
                 tint = Color.White.copy(alpha = 0.5f),
-                modifier = Modifier.size(20.dp)
-            )
+                modifier = Modifier.size(20.dp), contentDescription = null)
         }
     }
 }
-data class UserModel(val fullName: String, val email: String)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditProfileScreen(
     onBack: () -> Unit,
     onSaveSuccess: (String) -> Unit,
-    onSaveError: (String) -> Unit
+    onSaveError: (String) -> Unit,
+    database: DatabaseReference,
+    userId: String
 ) {
-    var fullName by remember { mutableStateOf("Coffee Lover") } // Changed default name
-    var email by remember { mutableStateOf("user@caffio.com") } // Changed default email
+    var fullName by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     val gradient = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF6F4E37), Color(0xFF8B4513), // Coffee-like colors
-            Color(0xFFA0522D), Color(0xFFD2B48C)
-        )
+        colors = listOf(Color(0xFF6F4E37), Color(0xFF8B4513), Color(0xFFA0522D), Color(0xFFD2B48C))
     )
+
+    // Load current data
+    LaunchedEffect(Unit) {
+        database.child("users").child(userId).get()
+            .addOnSuccessListener { snapshot ->
+                val user = snapshot.getValue(UserModel::class.java)
+                if (user != null) {
+                    fullName = user.fullName
+                    email = user.email
+                }
+            }
+    }
 
     Scaffold(
         topBar = {
@@ -383,9 +435,211 @@ fun EditProfileScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.Default.ArrowBack,
-                            contentDescription = "Back",
+                            tint = Color.White,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        },
+        containerColor = Color.Transparent
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(gradient)
+                .padding(paddingValues)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Profile Image Placeholder
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFFCD853F),
+                                    Color(0xFFD2B48C),
+                                    Color(0xFFF5DEB3)
+                                )
+                            )
+                        )
+                        .border(3.dp, Color(0xFFA0522D), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = fullName.firstOrNull()?.uppercase() ?: "U",
+                        color = Color(0xFF6F4E37),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 48.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Change Photo Button
+                Button(
+                    onClick = {
+                        // Handle image picker intent or photo change
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFCD853F).copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Change Photo", color = Color.White, fontSize = 14.sp)
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Input Fields Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0x40000000))
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        OutlinedTextField(
+                            value = fullName,
+                            onValueChange = { fullName = it },
+                            label = {
+                                Text("Full Name", color = Color.White.copy(alpha = 0.7f))
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = Color(0xFFCD853F),
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
+                                cursorColor = Color(0xFFCD853F)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = {
+                                Text("Email", color = Color.White.copy(alpha = 0.7f))
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = Color(0xFFCD853F),
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
+                                cursorColor = Color(0xFFCD853F)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(42.dp))
+
+                // Save Changes Button
+                Button(
+                    onClick = {
+                        if (fullName.isBlank() || email.isBlank()) {
+                            onSaveError("All fields are required")
+                            return@Button
+                        }
+                        isLoading = true
+                        val updatedUser = UserModel(fullName = fullName, email = email)
+                        database.child("users").child(userId).setValue(updatedUser)
+                            .addOnSuccessListener {
+                                onSaveSuccess("Profile saved!")
+                            }
+                            .addOnFailureListener {
+                                onSaveError("Save failed: ${it.message}")
+                            }
+                            .addOnCompleteListener { isLoading = false }
+                    },
+                    enabled = !isLoading,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCD853F)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.AddCircle,
+                            contentDescription = null,
                             tint = Color.White
                         )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Save Changes", color = Color.White, fontSize = 16.sp)
+                    }
+                }
+            } // ✅ Column ends here (was incorrectly placed earlier)
+        } // Box ends here
+    } // Scaffold ends here
+    }
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CoffeePreferencesScreen(
+    onBack: () -> Unit,
+    onSaveSuccess: (String) -> Unit,
+    onSaveError: (String) -> Unit,
+    database: DatabaseReference,
+    userId: String
+) {
+    var preferences by remember { mutableStateOf(setOf<String>()) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    val coffeeOptions = listOf(
+        "☕ Espresso" to "Strong & Bold",
+        "🥛 Latte" to "Creamy & Smooth",
+        "🧊 Iced Coffee" to "Chilled & Refreshing",
+        "🍫 Mocha" to "Chocolatey & Indulgent",
+        "🫘 Americano" to "Rich & Simple",
+        "🍮 Cappuccino" to "Frothy & Classic"
+    )
+
+    LaunchedEffect(Unit) {
+        database.child("users").child(userId).child("preferences").get()
+            .addOnSuccessListener { snapshot ->
+                val list = snapshot.children.mapNotNull { it.getValue(String::class.java) }
+                preferences = list.toSet()
+            }
+    }
+
+    val gradient = Brush.verticalGradient(
+        colors = listOf(Color(0xFF6F4E37), Color(0xFF8B4513), Color(0xFFA0522D), Color(0xFFD2B48C))
+    )
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Coffee Preferences", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, tint = Color.White, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -407,124 +661,99 @@ fun EditProfileScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(modifier = Modifier.height(20.dp))
+
                 Box(
                     modifier = Modifier
-                        .size(120.dp)
+                        .size(80.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    Color(0xFFCD853F), Color(0xFFD2B48C), Color(0xFFF5DEB3) // Coffee-like colors
-                                )
-                            )
-                        )
-                        .border(3.dp, Color(0xFFA0522D), CircleShape), // Coffee-like color
+                        .background(Color(0xFFD2B48C).copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = fullName.firstOrNull()?.toString()?.uppercase() ?: "U",
-                        color = Color(0xFF6F4E37), fontWeight = FontWeight.Bold, fontSize = 48.sp // Coffee-like color
-                    )
+                    Text(text = "☕", fontSize = 40.sp)
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = { /* TODO: Change profile picture */ },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCD853F).copy(alpha = 0.3f)), // Coffee-like color
-                    shape = RoundedCornerShape(20.dp),
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Choose Your Favorites", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Select the coffee types that match your taste and energy goals",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 16.dp)
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Change Photo", color = Color.White, fontSize = 14.sp)
-                }
+                )
+
                 Spacer(modifier = Modifier.height(32.dp))
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0x40000000)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    colors = CardDefaults.cardColors(containerColor = Color(0x40000000))
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = fullName,
-                            onValueChange = { fullName = it },
-                            label = { Text("Full Name", color = Color.White.copy(alpha = 0.7f)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFFCD853F), // Coffee-like color
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-                                cursorColor = Color(0xFFCD853F) // Coffee-like color
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it },
-                            label = { Text("Email", color = Color.White.copy(alpha = 0.7f)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFFCD853F), // Coffee-like color
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-                                cursorColor = Color(0xFFCD853F) // Coffee-like color
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(32.dp))
-                Button(
-                    onClick = {
-                        isLoading = true
-                        // Simulate an API call or database save
-                    },  
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCD853F)), // Coffee-like color
-                    shape = RoundedCornerShape(16.dp),
-                    enabled = !isLoading
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    } else {
-                        Icon(Icons.Default.AddCircle, contentDescription = null, tint = Color.White)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            "Save Changes",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        coffeeOptions.forEach { (option, description) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        preferences = if (preferences.contains(option)) preferences - option else preferences + option
+                                    }
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = preferences.contains(option),
+                                    onCheckedChange = { checked ->
+                                        preferences = if (checked) preferences + option else preferences - option
+                                    },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = Color(0xFFD2B48C),
+                                        uncheckedColor = Color.White.copy(alpha = 0.7f),
+                                        checkmarkColor = Color(0xFF6F4E37)
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(option, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(description, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                                }
+                            }
+                        }
                     }
                 }
 
-                // Simulate saving process
-                if (isLoading) {
-                    LaunchedEffect(key1 = Unit) {
-                        delay(2000) // Simulate network delay
-                        val success = (0..1).random() == 1 // Simulate success/failure randomly
-                        if (success) {
-                            onSaveSuccess("Profile updated successfully!")
-                        } else {
-                            onSaveError("Failed to update profile. Please try again.")
-                        }
-                        isLoading = false
+                Spacer(modifier = Modifier.height(32.dp))
+
+                Button(
+                    onClick = {
+                        isLoading = true
+                        database.child("users").child(userId).child("preferences")
+                            .setValue(preferences.toList())
+                            .addOnSuccessListener {
+                                onSaveSuccess("Preferences saved!")
+                            }
+                            .addOnFailureListener {
+                                onSaveError("Failed to save: ${it.message}")
+                            }
+                            .addOnCompleteListener { isLoading = false }
+                    },
+                    enabled = !isLoading,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD2B48C)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                    } else {
+                        Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Save Preferences", color = Color.White, fontSize = 16.sp)
                     }
                 }
             }
         }
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChangePasswordScreen(
@@ -536,30 +765,19 @@ fun ChangePasswordScreen(
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+
+    var scope = rememberCoroutineScope()
     val gradient = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF6F4E37), Color(0xFF8B4513), // Coffee-like colors
-            Color(0xFFA0522D), Color(0xFFD2B48C)
-        )
+        colors = listOf(Color(0xFF6F4E37), Color(0xFF8B4513), Color(0xFFA0522D), Color(0xFFD2B48C))
     )
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        "Change Password",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                },
+                title = { Text("Change Password", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
+                        Icon(Icons.Default.ArrowBack, tint = Color.White, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -581,352 +799,113 @@ fun ChangePasswordScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(modifier = Modifier.height(20.dp))
+
                 Box(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFCD853F).copy(alpha = 0.2f)), // Coffee-like color
+                        .background(Color(0xFFCD853F).copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = Color(0xFFCD853F), // Coffee-like color
-                        modifier = Modifier.size(40.dp)
-                    )
+                    Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFFCD853F), modifier = Modifier.size(40.dp))
                 }
+
                 Spacer(modifier = Modifier.height(16.dp))
+                Text("Secure Your Account", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    text = "Secure Your Account",
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Update your password to keep your coffee journey safe", // Changed text
+                    "Update your password to keep your coffee journey safe",
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
+
                 Spacer(modifier = Modifier.height(32.dp))
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0x40000000)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    colors = CardDefaults.cardColors(containerColor = Color(0x40000000))
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp)
-                    ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
                         OutlinedTextField(
                             value = currentPassword,
                             onValueChange = { currentPassword = it },
                             label = { Text("Current Password", color = Color.White.copy(alpha = 0.7f)) },
-                            modifier = Modifier.fillMaxWidth(),
                             visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFFCD853F), // Coffee-like color
+                                focusedBorderColor = Color(0xFFCD853F),
                                 unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-                                cursorColor = Color(0xFFCD853F) // Coffee-like color
+                                cursorColor = Color(0xFFCD853F)
                             ),
                             shape = RoundedCornerShape(12.dp)
                         )
+
                         Spacer(modifier = Modifier.height(16.dp))
+
                         OutlinedTextField(
                             value = newPassword,
                             onValueChange = { newPassword = it },
                             label = { Text("New Password", color = Color.White.copy(alpha = 0.7f)) },
-                            modifier = Modifier.fillMaxWidth(),
                             visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFFCD853F), // Coffee-like color
+                                focusedBorderColor = Color(0xFFCD853F),
                                 unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-                                cursorColor = Color(0xFFCD853F) // Coffee-like color
+                                cursorColor = Color(0xFFCD853F)
                             ),
                             shape = RoundedCornerShape(12.dp)
                         )
+
                         Spacer(modifier = Modifier.height(16.dp))
+
                         OutlinedTextField(
                             value = confirmPassword,
                             onValueChange = { confirmPassword = it },
                             label = { Text("Confirm New Password", color = Color.White.copy(alpha = 0.7f)) },
-                            modifier = Modifier.fillMaxWidth(),
                             visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFFCD853F), // Coffee-like color
+                                focusedBorderColor = Color(0xFFCD853F),
                                 unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-                                cursorColor = Color(0xFFCD853F) // Coffee-like color
+                                cursorColor = Color(0xFFCD853F)
                             ),
                             shape = RoundedCornerShape(12.dp)
                         )
                     }
                 }
+
                 Spacer(modifier = Modifier.height(32.dp))
+
                 Button(
                     onClick = {
-                        isLoading = true
-                        // Simulate an API call or database save
+                        scope.launch {
+                            delay(2000)
+                            onSaveSuccess("Password updated!")
+                            isLoading = false
+                        }
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCD853F)), // Coffee-like color
-                    shape = RoundedCornerShape(16.dp),
-                    enabled = !isLoading
+                    enabled = !isLoading,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCD853F)),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
                     } else {
                         Icon(Icons.Default.Lock, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            "Update Password",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                // Simulate saving process
-                if (isLoading) {
-                    LaunchedEffect(key1 = Unit) {
-                        delay(2000) // Simulate network delay
-                        val success = (0..1).random() == 1 // Simulate success/failure randomly
-                        if (success) {
-                            onSaveSuccess("Password updated successfully!")
-                        } else {
-                            onSaveError("Failed to update password. Please try again.")
-                        }
-                        isLoading = false
+                        Text("Update Password", color = Color.White, fontSize = 16.sp)
                     }
                 }
             }
         }
-    }
-}
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun CoffeePreferencesScreen(
-    onBack: () -> Unit,
-    onSaveSuccess: (String) -> Unit,
-    onSaveError: (String) -> Unit
-) { // Changed function name
-    var preferences by remember { mutableStateOf(setOf<String>()) }
-    var isLoading by remember { mutableStateOf(false) }
-    val coffeeOptions = listOf( // Changed options to coffee-related
-        "☕ Espresso" to "Strong & Bold",
-        "🥛 Latte" to "Creamy & Smooth",
-        "🧊 Iced Coffee" to "Chilled & Refreshing",
-        "🍫 Mocha" to "Chocolatey & Indulgent",
-        "🫘 Americano" to "Rich & Simple",
-        "🍮 Cappuccino" to "Frothy & Classic"
-    )
-    val gradient = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF6F4E37), Color(0xFF8B4513), // Coffee-like colors
-            Color(0xFFA0522D), Color(0xFFD2B48C)
-        )
-    )
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Coffee Preferences", // Changed title
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-            )
-        },
-        containerColor = Color.Transparent
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(gradient)
-                .padding(paddingValues)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp)
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(modifier = Modifier.height(20.dp))
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFD2B48C).copy(alpha = 0.2f)), // Coffee-like color
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "☕", // Changed emoji
-                        fontSize = 40.sp
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Choose Your Favorites",
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Select the coffee types that match your taste and energy goals", // Changed text
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-                Spacer(modifier = Modifier.height(32.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0x40000000)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        coffeeOptions.forEach { (option, description) ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        preferences = if (preferences.contains(option)) {
-                                            preferences - option
-                                        } else {
-                                            preferences + option
-                                        }
-                                    }
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = preferences.contains(option),
-                                    onCheckedChange = { isChecked ->
-                                        preferences = if (isChecked) {
-                                            preferences + option
-                                        } else {
-                                            preferences - option
-                                        }
-                                    },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFFD2B48C), // Coffee-like color
-                                        uncheckedColor = Color.White.copy(alpha = 0.7f),
-                                        checkmarkColor = Color(0xFF6F4E37) // Coffee-like color
-                                    )
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = option, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                                    Text(text = description, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(32.dp))
-                Button(
-                    onClick = {
-                        isLoading = true
-                        // Simulate an API call or database save
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD2B48C)), // Coffee-like color
-                    shape = RoundedCornerShape(16.dp),
-                    enabled = !isLoading
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    } else {
-                        Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.White)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            "Save Preferences",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                // Simulate saving process
-                if (isLoading) {
-                    LaunchedEffect(key1 = Unit) {
-                        delay(2000) // Simulate network delay
-                        val success = (0..1).random() == 1 // Simulate success/failure randomly
-                        if (success) {
-                            onSaveSuccess("Coffee preferences saved successfully!")
-                        } else {
-                            onSaveError("Failed to save preferences. Please try again.")
-                        }
-                        isLoading = false
-                    }
-                }
-            }
-        }
-    }
-}
-@Preview(showBackground = true)
-@Composable
-fun ProfileScreenPreview() {
-    CaffioTheme {
-        ProfileScreen(onNavigate = {}, onBack = {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun EditProfileScreenPreview() {
-    CaffioTheme {
-        EditProfileScreen(onBack = {}, onSaveSuccess = {}, onSaveError = {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ChangePasswordScreenPreview() {
-    CaffioTheme {
-        ChangePasswordScreen(onBack = {}, onSaveSuccess = {}, onSaveError = {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun CoffeePreferencesScreenPreview() {
-    CaffioTheme {
-        CoffeePreferencesScreen(onBack = {}, onSaveSuccess = {}, onSaveError = {})
     }
 }

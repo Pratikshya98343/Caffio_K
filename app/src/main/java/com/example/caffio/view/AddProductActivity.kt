@@ -140,7 +140,6 @@ fun AddProductScreen(
                 title = { }, // No title in the center
                 navigationIcon = {
                     IconButton(onClick = {
-                        // Navigate back to DashboardActivity
                         val intent = Intent(context, DashboardActivity::class.java)
                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
                         context.startActivity(intent)

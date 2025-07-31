@@ -29,7 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,9 +61,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.caffio.R
-import com.example.caffio.searchActivity
 import com.example.caffio.ui.theme.CaffioTheme
 import kotlinx.coroutines.delay
+
+// Make sure this import points to your actual LoginActivity
+// If LoginActivity is in a different package, adjust the import accordingly
+// import com.example.yourapp.LoginActivity // Example alternative import
 
 class DashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -85,7 +88,6 @@ fun UserDashboard() {
     // Use Elvis operator for null safety and capitalize the first part of the email
     val email: String = activity.intent.getStringExtra("email")?.split('@')?.get(0)?.capitalize() ?: "Coffee Lover"
     var isVisible by remember { mutableStateOf(false) }
-
     // Coffee-themed gradient colors (browns and warm tones)
     val profileBackgroundGradient = Brush.verticalGradient(
         colors = listOf(
@@ -95,25 +97,32 @@ fun UserDashboard() {
             Color(0xFF6D4C41)  // Light Coffee Brown
         )
     )
-
     LaunchedEffect(Unit) {
         delay(400)
         isVisible = true
     }
-
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { /* No title needed here as we have a custom greeting */ },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 actions = {
+                    // --- Logout Button ---
                     IconButton(onClick = {
-                        context.startActivity(Intent(context, searchActivity::class.java))
+                        // Clear activity stack and navigate to LoginActivity
+                        // Make sure LoginActivity exists and the import is correct
+                        val intent = Intent(context, LoginActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            // Optional: Add an extra to indicate logout if needed in LoginActivity
+                            // putExtra("USER_LOGGED_OUT", true)
+                        }
+                        context.startActivity(intent)
+                        activity.finish() // Finish the current DashboardActivity
                     }) {
                         Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = "Search",
-                            tint = Color.White
+                            imageVector = Icons.Filled.ExitToApp, // Use the Logout icon
+                            contentDescription = "Logout",
+                            tint = Color.White // You can change the color if desired
                         )
                     }
                 }
@@ -128,7 +137,7 @@ fun UserDashboard() {
                 NavigationBarItem(
                     selected = true,
                     onClick = { /* Stay on Dashboard */ },
-                    icon = { Icon(painterResource(R.drawable.background), contentDescription = "Home") },
+                    icon = { Icon(painterResource(R.drawable.baseline_home_24), contentDescription = "Home") },
                     label = { Text("Home") }
                 )
                 NavigationBarItem(
@@ -136,7 +145,7 @@ fun UserDashboard() {
                     onClick = {
                         context.startActivity(Intent(context, FavouriteActivity::class.java))
                     },
-                    icon = { Icon(painterResource(R.drawable.background), contentDescription = "Favorites") },
+                    icon = { Icon(painterResource(R.drawable.baseline_favorite_24), contentDescription = "Favorites") },
                     label = { Text("Favorites") }
                 )
                 NavigationBarItem(
@@ -144,7 +153,7 @@ fun UserDashboard() {
                     onClick = {
                         context.startActivity(Intent(context, ProfileActivity::class.java))
                     },
-                    icon = { Icon(painterResource(R.drawable.background), contentDescription = "Profile") },
+                    icon = { Icon(painterResource(R.drawable.baseline_person_24), contentDescription = "Profile") },
                     label = { Text("Profile") }
                 )
             }
@@ -169,7 +178,6 @@ fun UserDashboard() {
                         color = Color.White
                     )
                 }
-
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -205,13 +213,11 @@ fun UserDashboard() {
                             .padding(16.dp)
                     )
                 }
-
                 Text(
                     text = "☕ Featured Coffee Blends",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                     color = Color.White
                 )
-
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.weight(1f)
@@ -233,7 +239,6 @@ fun UserDashboard() {
                     }
                 }
             }
-
             // Plus icon button at the bottom right
             Box(
                 modifier = Modifier
@@ -268,37 +273,37 @@ data class CoffeeBlend(
 
 val sampleCoffeeBlends = listOf(
     CoffeeBlend(
-        "Ethiopian Yirgacheffe",
+        "Cappuccino White Foam Coffee for Everyone",
         "Bright and floral notes with hints of citrus and tea-like qualities. A premium single-origin coffee with wine-like acidity and complex flavor profile.",
-        R.drawable.background,
+        R.drawable.img_1,
         450.00,
         "Light Roast"
     ),
     CoffeeBlend(
-        "Colombian Supremo",
+        "Classic Espresso Single Shot Premium Blend",
         "Rich, full-bodied coffee with chocolate undertones and nutty finish. Perfectly balanced acidity with caramel sweetness that makes it ideal for any time of day.",
-        R.drawable.ic_launcher_foreground,
+        R.drawable.img_2,
         380.00,
         "Medium Roast"
     ),
     CoffeeBlend(
-        "Italian Espresso Blend",
+        "Americano Light Brown Coffee for Daily Energy",
         "Bold and intense with deep, smoky flavors. A classic dark roast blend perfect for espresso shots, cappuccinos, and lattes. Strong caffeine kick guaranteed.",
-        R.drawable.background,
+        R.drawable.img_3,
         520.00,
         "Dark Roast"
     ),
     CoffeeBlend(
-        "Brazilian Santos",
+        "Coffee Frappuccino Iced Coffee Special Edition",
         "Smooth and mellow with low acidity and nutty chocolate notes. An excellent everyday coffee that's gentle on the stomach yet rich in flavor and aroma.",
-        R.drawable.background,
+        R.drawable.img_4,
         320.00,
         "Medium Roast"
     ),
     CoffeeBlend(
-        "Jamaican Blue Mountain",
+        "Coffee Frappuccino Special Edition",
         "The world's most sought-after coffee with exceptional smoothness and no bitterness. Mild yet complex with floral aroma and perfect balance.",
-        R.drawable.background,
+        R.drawable.img_5,
         850.00,
         "Medium Roast"
     )

@@ -1,32 +1,19 @@
 package com.example.caffio.repository
 
+import android.net.wifi.aware.AttachCallback
 import com.example.caffio.model.UserModel
 import com.google.firebase.auth.FirebaseUser
-import javax.security.auth.callback.Callback
 
-interface UserRepository {
+interface UserRepo {
     //login
-    //register
-    //forgotPassword
-    //updateProfile
-    //getCurrentUser
-    //addUserToDatabase
+    // Register
+    // forget password
+    //update profile
+    //update profile
+    //get CurrentUser
+    // addUserToDatabase
     //logout
-    //{
-    //  "success": true,
-    //  "message": "login successful",
-    //  "statusCode": 200
 
-    fun login(
-        email: String, password: String,
-        callback: (Boolean, String) -> Unit
-    )
-
-    //authentication function
-    fun register(
-        email: String, password: String,
-        callback: (Boolean, String, String) -> Unit
-    )
 
     //database function
     fun addUserToDatabase(
@@ -40,7 +27,6 @@ interface UserRepository {
     fun forgetPassword(
         email: String, callback: (Boolean, String) -> Unit
     )
-
     fun getCurrentUser(): FirebaseUser?
 
     fun getUserById(

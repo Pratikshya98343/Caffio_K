@@ -9,60 +9,27 @@ import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 
-
-class UserRepositoryImpl: UserRepository {
+class UserRepositoryImpl :  UserRepo {
     val auth : FirebaseAuth = FirebaseAuth.getInstance()
-
     val database : FirebaseDatabase = FirebaseDatabase.getInstance()
+    val ref: DatabaseReference = database.reference.child("users")
 
-    val ref : DatabaseReference = database.reference.child("Users")
-    override fun login(
-        email: String,
-        password: String,
-        callback: (Boolean, String) -> Unit
-    ) {
-        auth.signInWithEmailAndPassword(email,password)
-            .addOnCompleteListener {
-                if (it.isSuccessful) {
-                    callback(true, "Login successfully")
-                } else {
-                    callback(false, "${it.exception?.message}")
 
-                }
-            }
-    }
-
-    override fun register(
-        email: String,
-        password: String,
-        callback: (Boolean, String, String) -> Unit
-    ) {
-        auth.createUserWithEmailAndPassword(email,password)
-            .addOnCompleteListener {
-                if (it.isSuccessful) {
-                    callback(true,"Registered successfully",
-                        "${auth.currentUser?.uid}")
-                } else{
-                    callback(false,"${it.exception?.message}",
-                        "")
-
-                }
-            }
-    }
-
+    //create
     override fun addUserToDatabase(
         userId: String,
         model: UserModel,
         callback: (Boolean, String) -> Unit
     ) {
         ref.child(userId).setValue(model).addOnCompleteListener {
-            if (it.isSuccessful) {
-                callback(true, "User added")
+            if(it.isSuccessful){
+                callback(true,"user added")
             }else{
-    callback(false,"${it.exception?.message}")
-                }
+                callback(false,"${it.exception?.message}")
+            }
         }
     }
+
 
     override fun updateProfile(
         userId: String,
@@ -70,8 +37,8 @@ class UserRepositoryImpl: UserRepository {
         callback: (Boolean, String) -> Unit
     ) {
         ref.child(userId).updateChildren(data).addOnCompleteListener {
-            if (it.isSuccessful) {
-                callback(true, "User updated")
+            if(it.isSuccessful){
+                callback(true,"User updated")
             }else{
                 callback(false,"${it.exception?.message}")
             }
@@ -84,11 +51,10 @@ class UserRepositoryImpl: UserRepository {
     ) {
         auth.sendPasswordResetEmail(email)
             .addOnCompleteListener {
-                if (it.isSuccessful) {
-                    callback(true,"Reset email sent to the $email")
-                } else{
+                if(it.isSuccessful){
+                    callback(true,"Reset email sent to $email")
+                }else{
                     callback(false,"${it.exception?.message}")
-
                 }
             }
     }
@@ -101,21 +67,21 @@ class UserRepositoryImpl: UserRepository {
         userId: String,
         callback: (UserModel?, Boolean, String) -> Unit
     ) {
-        ref.child(userId).addValueEventListener(object : ValueEventListener {
+        ref.child(userId).addValueEventListener(object : ValueEventListener{
             override fun onDataChange(snapshot: DataSnapshot) {
-                if (snapshot.exists()) {
+                if (snapshot.exists()){
                     val users = snapshot.getValue(UserModel::class.java)
-                    if (users != null) {
-                        callback(users, true, "data fetched")
+                    if(users != null){
+                        callback(users,true,"data fetched")
                     }
                 }
             }
+
             override fun onCancelled(error: DatabaseError) {
-                callback(null, false, error.message)
+                callback(null,false,error.message)
             }
         })
     }
-
 
     override fun logout(callback: (Boolean, String) -> Unit) {
         try {

@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
+import android.util.Log
 import com.cloudinary.Cloudinary
 import com.cloudinary.utils.ObjectUtils
 import com.example.caffio.model.ProductModel
@@ -24,7 +25,7 @@ class ProductRepositoryImpl : ProductRepository {
         mapOf(
             "cloud_name" to "dyznnld3x",
             "api_key" to "812298735683823",
-            "api_secret" to "O5kpQhJz0mviec1nceCLHnDR3Utk"
+            "api_secret" to "5kpQhJz0mviec1nceCLHnDR3Utk"
         )
     )
 
@@ -56,6 +57,7 @@ class ProductRepositoryImpl : ProductRepository {
 
             } catch (e: Exception) {
                 e.printStackTrace()
+                Log.d("checkkk",e.toString())
                 Handler(Looper.getMainLooper()).post {
                     callback(null)
                 }
